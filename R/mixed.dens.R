@@ -393,5 +393,5 @@ predict.cmdSuperLearner <- function(fit, newA, newW, threshold = .001) {
     }
     pred.densities[,which(lib.name.nbins == bin)] <- pred.probs / bin.sizes[new.bins]
   }
-  c(pred.densities[,nonzero] %*% trunc.coef[nonzero])
+  c(pred.densities[,nonzero,drop=FALSE] %*% trunc.coef[nonzero])
 }

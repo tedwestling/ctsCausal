@@ -94,6 +94,10 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
     Y <- Y[ord]
     W <- W[ord,,drop=FALSE]
     g.hats <- control$g.hat(A, W)
+    if(any(g.hats < control$g.trunc)) {
+      warning("Truncating g.hats below. Possible positivity issues.")
+      g.hats[g.hats < control$g.trunc] <- control$g.trunc
+    }
     a.ecdf <- ecdf(A)
     a.weights <- sapply(a.vals, function(a0) mean(A == a0))
     A.a.val <- sapply(A, function(a0) which(a.vals == a0))
@@ -136,6 +140,10 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
       Y.test <- Y.test[ord]
       W.test <- W.test[ord,, drop=FALSE]
       g.hats.test <- control$g.hat[[j]](a = A.test, w = W.test)
+      if(any(g.hats.test < control$g.trunc)) {
+        warning("Truncating g.hats below. Possible positivity issues.")
+        g.hats.test[g.hats.test < control$g.trunc] <- control$g.trunc
+      }
       a.ecdf <- ecdf(A.test)
       a.weights <- sapply(a.vals, function(a0) mean(A.test == a0))
       A.a.val <- sapply(A.test, function(a0) which(a.vals == a0))
@@ -219,6 +227,7 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
 #' @param save.nuis.fits Logical indicating whether to save the fitted nuisance objects.
 #' @param mu.hat Optional pre-fit outcome regression. If \code{cross.fit} is \code{FALSE}, then a function that takes arguments \code{a} (a vector) and \code{w} (a data.frame) and returns predictions of the outcome regression function. If \code{cross.fit} is \code{TRUE}, then a list of functions of length \code{V} with the fitted outcome regression functions on each of the \code{V} training sets. If provided as a list of functions, then \code{folds} must be provided. If \code{mu.SL.library = NULL}, then \code{mu.hats} must be specified.
 #' @param g.hat Optional pre-fit treatment propensities. If \code{cross.fit} is \code{FALSE}, then a function that takes arguments \code{a} (a vector) and \code{w} (a data.frame) and returns predictions of the standardized propensity function. If \code{cross.fit} is \code{TRUE}, then a list of functions of length \code{V} with the fitted standardized propensity functions on each of the \code{V} training sets. If provided as a list of functions, then \code{folds} must be provided. If \code{g.SL.library = NULL}, then \code{g.hats} must be specified.
+#' @param g.trunc Value at which to truncate predicted propensities from below. Any propensity values less than \code{g.trunc} will be set to \code{g.trunc}.
 #' @param n.sim Number of simulations to use for the limiting Gaussian process in computing approximate quantiles.
 #' @param return.Omega Logical indicating whether to return the estimated primitive function Omega.
 #' @param conf.level Optional confidence level to use for computing confidence bands for Omega.
@@ -234,12 +243,13 @@ causalNullTest.control <- function(mu.SL.library = c("SL.mean", "SL.glm", "SL.ga
                                    save.nuis.fits = FALSE,
                                    mu.hat = NULL,
                                    g.hat = NULL,
+                                   g.trunc = .001,
                                    n.sim = 1e4,
                                    return.Omega = FALSE,
                                    conf.level = .95,
                                    verbose = FALSE) {
   list(mu.SL.library = mu.SL.library, g.SL.library = g.SL.library, g.n.bins = g.n.bins, cross.fit = cross.fit, V = V,
-       folds = folds, mu.hat = mu.hat,  g.hat = g.hat, n.sim = n.sim, return.Omega = return.Omega,
+       folds = folds, mu.hat = mu.hat,  g.hat = g.hat, g.trunc = g.trunc, n.sim = n.sim, return.Omega = return.Omega,
        save.nuis.fits = save.nuis.fits, conf.level = conf.level, verbose = verbose)
 }
 
