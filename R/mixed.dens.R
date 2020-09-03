@@ -388,7 +388,7 @@ predict.cmdSuperLearner <- function(fit, newA, newW, threshold = .001) {
     pred.probs <- matrix(NA, nrow = length(new.U), ncol = length(unique(lib.name.alg)))
     for(k in 1:length(fit$fits[[ind]]$bin.fits)) {
       if(any(new.bins == k)) {
-        pred.probs[new.bins == k,] <- predict.SuperLearner(fit$fits[[ind]]$bin.fits[[k]], newdata = newW[new.bins == k,, drop=FALSE])$library.predict
+        pred.probs[new.bins == k,] <- predict.SuperLearner(fit$fits[[ind]]$bin.fits[[k]], newdata = newW[new.bins == k,, drop=FALSE], onlySL = TRUE)$library.predict
       }
     }
     pred.densities[,which(lib.name.nbins == bin)] <- pred.probs / bin.sizes[new.bins]
