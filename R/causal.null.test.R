@@ -74,14 +74,17 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
       if(control$verbose) cat("Estimating propensities..")
       control$g.hat <- lapply(1:control$V, function(v) {
         if(control$verbose) cat("fold", v)
-        fit <- cmdSuperLearner(A = A[control$folds != v], W = W[control$folds != v,,drop=FALSE], control=list(SL.library = control$g.SL.library, n.bins = control$g.n.bins, verbose = control$verbose, saveFitLibrary = TRUE))
-        function(a, w) c(predict.cmdSuperLearner(fit, newA = a, newW = w))
+        fit <- cmdSuperLearner(A = A[control$folds != v], W = W[control$folds != v,,drop=FALSE], newA = A[control$folds == v], newW = W[control$folds == v,,drop=FALSE], control=list(SL.library = control$g.SL.library, n.bins = control$g.n.bins, verbose = control$verbose, saveFitLibrary = FALSE))
+        c(fit$SL.densities)
+        #function(a, w) c(predict.cmdSuperLearner(fit, newA = a, newW = w))
       })
       if(control$verbose) cat("\n")
     } else {
       if(control$verbose) cat("Estimating propensity...")
-      g.fit <- cmdSuperLearner(A = A, W = W, control=list(SL.library = control$g.SL.library, n.bins = control$g.n.bins, verbose = control$verbose, saveFitLibrary = TRUE))
-      control$g.hat <- function(a, w) c(predict.cmdSuperLearner(g.fit, newA = a, newW = w))
+      g.fit <- cmdSuperLearner(A = A, W = W, control=list(SL.library = control$g.SL.library, n.bins = control$g.n.bins, verbose = control$verbose, saveFitLibrary = FALSE))
+      control$g.hat <- g.fit$SL.densities
+      rm(g.fit)
+      #control$g.hat <- function(a, w) c(predict.cmdSuperLearner(g.fit, newA = a, newW = w))
 
       if(control$verbose) cat("\n")
     }
@@ -93,7 +96,11 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
     A <- A[ord]
     Y <- Y[ord]
     W <- W[ord,,drop=FALSE]
-    g.hats <- control$g.hat(A, W)
+    if(inherits(control$g.hat, "function")) {
+      g.hats <- control$g.hat(A, W)
+      control$g.hat <- NULL
+    }
+    else g.hats <- control$g.hat
     if(any(g.hats < control$g.trunc)) {
       warning("Truncating g.hats below. Possible positivity issues.")
       g.hats[g.hats < control$g.trunc] <- control$g.trunc
@@ -103,6 +110,7 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
     A.a.val <- sapply(A, function(a0) which(a.vals == a0))
     u.vals <- a.ecdf(a.vals)
     mu.hats.a.vals <- sapply(a.vals, function(a0) control$mu.hat(a0, W)) #rows index W, columns index a.vals
+    control$mu.hat <- NULL
     mu.hats <- mu.hats.a.vals[,A.a.val]
     theta.a.vals <- colMeans(mu.hats.a.vals)
     theta.A <- theta.a.vals[A.a.val]
@@ -139,7 +147,11 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
       A.test <- A.test[ord]
       Y.test <- Y.test[ord]
       W.test <- W.test[ord,, drop=FALSE]
-      g.hats.test <- control$g.hat[[j]](a = A.test, w = W.test)
+      if(inherits(control$g.hat[[j]], "function")) {
+        g.hats.test <- control$g.hat[[j]](a = A.test, w = W.test)
+      }
+      else g.hats.test <- control$g.hat[[j]]
+
       if(any(g.hats.test < control$g.trunc)) {
         warning("Truncating g.hats below. Possible positivity issues.")
         g.hats.test[g.hats.test < control$g.trunc] <- control$g.trunc

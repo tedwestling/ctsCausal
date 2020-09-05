@@ -6,13 +6,15 @@
 #'
 #' @param A \code{n x 1} numeric vector of exposure values.
 #' @param W \code{n x p} data.frame of covariate values to condition upon.
+#' @param newA \code{m x 1} numeric vector of new exposure values at which to obtain predictions. Defaults to \code{A}.
+#' @param newW \code{m x p} data.frame of new covariate values at which to obtain predictions. Defaults to \code{W}.
 #' @param control Optional list of control parameters. See \code{\link{cmdSuperLearner.control}} for details.
 #' @param cvControl Optional list of control parameters for cross-validation. See \code{\link{cmdSuperLearner.cvControl}} for details.
 #' @return \code{cmdSuperLearner} returns a named list with the following elements:
 #' \item{fits}{A list of fits for each of the number of bins specified in control$n.bins, as output by \link{cmdSuperLearner.onebin.}}
 #' \item{cv.library.densities}{Cross-validated densities from every element of the library.}
-#' \item{library.densities}{Densities predicted using the full data.}
-#' \item{SL.densities}{Super learner densities predicted on the full data.}
+#' \item{library.densities}{Densities predicted using the new data.}
+#' \item{SL.densities}{Super learner densities predicted on the new data.}
 #' \item{coef}{The coefficient of the meta-learner.}
 #' \item{library.names}{Names of library algortihms.}
 #' \item{a.ecdf}{Empirical CDF of the exposure.}
@@ -28,7 +30,7 @@
 #' fit <- cmdSuperLearner(A, W, control=list(SL.library = c("SL.mean", "SL.glm", "SL.gam", "SL.earth"), verbose=TRUE, n.bins = c(2:10)))
 
 
-cmdSuperLearner <- function(A, W, control = list(), cvControl = list()) {
+cmdSuperLearner <- function(A, W, newA = A, newW = W, control = list(), cvControl = list()) {
   n <- nrow(W)
 
   call <- match.call(expand.dots = TRUE)
@@ -42,12 +44,13 @@ cmdSuperLearner <- function(A, W, control = list(), cvControl = list()) {
   fits <- NULL
   for(b in control$n.bins) {
     if(control$verbose) cat("\nEstimating models with", b, "bins... ")
-    fits[[paste0('dens.fit.', b, 'bins')]] <- cmdSuperLearner.onebin(A, W, b=b, SL.library = control$SL.library, verbose = control$verbose, validRows = validRows)
+    fits[[paste0('dens.fit.', b, 'bins')]] <- cmdSuperLearner.onebin(A, W, newA=newA, newW = newW, b=b, SL.library = control$SL.library, verbose = control$verbose, validRows = validRows, saveFitLibrary = control$saveFitLibrary)
   }
 
   algs.per.bin <- ncol(fits[[1]]$cv.library.densities)
   n.algs <- length(control$n.bins) * algs.per.bin
-  cv.library.densities <- library.densities <- matrix(NA, nrow=n, ncol=n.algs)
+  cv.library.densities <- matrix(NA, nrow=n, ncol=n.algs)
+  library.densities <- matrix(NA, nrow=length(newA), ncol=n.algs)
   library.names <- NULL
   start.col <- 1
   for(b in control$n.bins) {
@@ -76,7 +79,7 @@ cmdSuperLearner <- function(A, W, control = list(), cvControl = list()) {
       cat(library.names[order(coef, decreasing = TRUE)[j]], " (weight ", sort(coef, decreasing = TRUE)[j], ")\n", sep='')
     }
   }
-  SL.density <- c(library.densities[,!errors.in.library] %*% solnp_solution$pars)
+  SL.density <- c(library.densities[,!errors.in.library,drop=FALSE] %*% solnp_solution$pars)
 
   return(list(fits = fits, cv.library.densities = cv.library.densities, library.densities = library.densities, SL.densities = SL.density, coef = coef, library.names = library.names, a.ecdf = ecdf(A), control=control, cvControl = cvControl))
 
@@ -161,6 +164,8 @@ cmdCVFolds <- function (n, cvControl) {
 #'
 #' @param A \code{n x 1} numeric vector of exposure values.
 #' @param W \code{n x p} data.frame of covariate values to condition upon.
+#' @param newA \code{m x 1} numeric vector of new exposure values at which to obtain predictions. Defaults to \code{A}.
+#' @param newW \code{m x p} data.frame of new covariate values at which to obtain predictions. Defaults to \code{W}.
 #' @param b Integer number of bins >= 2.
 #' @param SL.library Library to use for bin-specific probabilities.
 #' @param verbose Logical indicating whether to print progress reports to the command line.
@@ -169,10 +174,10 @@ cmdCVFolds <- function (n, cvControl) {
 #' \item{bins}{List of length \code{b} containing the sets used for each bin.}
 #' \item{bin.fits}{List of length \code{b} containing the estimated SuperLearner objects for each bin.}
 #' \item{a.ecdf}{Empirical CDF of the exposure.}
-#' \item{SL.bin.probs}{SuperLearner conditional probabilities of being in each bin.}
-#' \item{SL.densities}{SuperLearner conditional standardized mixed density correspondint to each bin.}
+#' \item{SL.bin.probs}{SuperLearner conditional probabilities of being in each bin for the new data.}
+#' \item{SL.densities}{SuperLearner conditional standardized mixed density correspondint to each bin for the new data.}
 #' \item{cv.library.densities}{Cross-validated library conditional standardized mixed density corresponding to each bin.}
-#' \item{library.densities}{Library conditional standardized mixed density corresponding to each bin fit on the full data.}
+#' \item{library.densities}{Library conditional standardized mixed density corresponding to each bin fit on the new data.}
 #' \item{alg.names}{Algorithm names.}
 #' @examples
 #' # Define parameters
@@ -183,12 +188,14 @@ cmdCVFolds <- function (n, cvControl) {
 #' validRows <- cmdCVFolds(n = n, cvControl = list(V = 10, shuffle=TRUE, validRows = NULL))
 #' bin.fit <- cmdSuperLearner.onebin(A, W, b = 2, SL.library = c("SL.mean", "SL.glm", "SL.gam", "SL.earth"), verbose=TRUE, validRows = validRows)
 
-cmdSuperLearner.onebin <- function(A, W, b, SL.library, verbose, validRows) {
+cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose, validRows, saveFitLibrary) {
   n.folds <- length(validRows)
   a.ecdf <- ecdf(A)
   U <- a.ecdf(A)
   n <- nrow(W)
+  m <- nrow(newW)
   W <- as.data.frame(W)
+  newW <- as.data.frame(newW)
   U <- as.numeric(U)
   library(Rsolnp)
   library(SuperLearner)
@@ -275,16 +282,21 @@ cmdSuperLearner.onebin <- function(A, W, b, SL.library, verbose, validRows) {
 
   disc.U <- .find.bin(U, bins)
 
+  U.new <- a.ecdf(newA)
+  disc.U.new <- .find.bin(U.new, bins)
+
+  bin.fracs <- sapply(1:b, function(j) mean(disc.U == j))
+
   bin.fits <- NULL
   bin.probs <- matrix(NA, nrow=n, ncol=b)
   for(bin in 1:b) {
     if(verbose) cat("bin", bin, "... ")
-    capture.output(bin.fit <- try(SuperLearner(Y=as.numeric(disc.U==bin), X=W, family='binomial', SL.library = SL.library, method='method.NNloglik', cvControl = list(V=n.folds, validRows=validRows)), silent=TRUE))
+    capture.output(bin.fit <- try(SuperLearner(Y=as.numeric(disc.U==bin), X=W, newX=newW, family='binomial', SL.library = SL.library, method='method.NNloglik', control = list(saveFitLibrary=saveFitLibrary), cvControl = list(V=n.folds, validRows=validRows)), silent=TRUE))
     if(class(bin.fit) == "try-error") {
-      capture.output(bin.fit <- try(SuperLearner(Y=as.numeric(disc.U==bin), X=W, family='binomial', SL.library = SL.library, method='method.NNLS', cvControl = list(V=n.folds, validRows=validRows)), silent=TRUE))
+      capture.output(bin.fit <- try(SuperLearner(Y=as.numeric(disc.U==bin), X=W, newX=newW, family='binomial', SL.library = SL.library, method='method.NNLS',control = list(saveFitLibrary=saveFitLibrary), cvControl = list(V=n.folds, validRows=validRows)), silent=TRUE))
     }
     if(class(bin.fit) == "try-error") {
-      capture.output(bin.fit <- try(SuperLearner(Y=as.numeric(disc.U==bin), X=W, family='binomial', SL.library = SL.library, method='method.NNLS2', cvControl = list(V=n.folds, validRows=validRows)), silent=TRUE))
+      capture.output(bin.fit <- try(SuperLearner(Y=as.numeric(disc.U==bin), X=W, newX=newW, family='binomial', SL.library = SL.library, method='method.NNLS2', control = list(saveFitLibrary=saveFitLibrary), cvControl = list(V=n.folds, validRows=validRows)), silent=TRUE))
     }
     if(class(bin.fit) != "try-error") {
       bin.fits[[paste0("bin", bin, ".SL")]] <- bin.fit
@@ -293,17 +305,21 @@ cmdSuperLearner.onebin <- function(A, W, b, SL.library, verbose, validRows) {
       bin.mean <- mean(as.numeric(disc.U==bin))
       if(class(SL.library) == "character") n.algs <- length(SL.library)
       else n.algs <- sum(unlist(lapply(SL.library, function(sl) length(sl) - 1)))
-      bin.fits[[paste0("bin", bin, ".SL")]] <- list(Z = matrix(bin.mean, nrow=n,ncol=n.algs), library.predict = matrix(bin.mean, nrow=n,ncol=n.algs))
+      bin.fits[[paste0("bin", bin, ".SL")]] <- list(Z = matrix(bin.mean, nrow=n,ncol=n.algs), library.predict = matrix(bin.mean, nrow=m,ncol=n.algs))
       bin.probs[,bin] <- bin.mean
     }
   }
 
-  SL.bin.probs <- .make.doubly.stochastic(bin.probs, row.sums = rep(1, n), col.sums = bin.sizes * n)
 
-  SL.densities <- SL.bin.probs[cbind(1:n, disc.U)] / bin.sizes[disc.U]
+
+  #SL.bin.probs <- .make.doubly.stochastic(bin.probs, row.sums = rep(1, m), col.sums = bin.fracs * m)
+  SL.bin.probs <- bin.probs / rowSums(bin.probs)
+
+  SL.densities <- SL.bin.probs[cbind(1:m, disc.U.new)] / bin.sizes[disc.U.new]
 
   n.alg <- ncol(bin.fits[["bin1.SL"]]$Z)
-  cv.library.densities <- library.densities <- matrix(NA, nrow=n, ncol=n.alg)
+  cv.library.densities <-  matrix(NA, nrow=n, ncol=n.alg)
+  library.densities <- matrix(NA, nrow=m, ncol=n.alg)
   for (j in 1:n.alg) {
     cv.bin.probs <- library.bin.probs <- matrix(NA, nrow=n, ncol=b)
     for (bin in 1:b) {
@@ -313,22 +329,26 @@ cmdSuperLearner.onebin <- function(A, W, b, SL.library, verbose, validRows) {
     if(any(is.na(cv.bin.probs)) | any(colSums(cv.bin.probs) == 0) | any(rowSums(cv.bin.probs) == 0)) {
       cv.library.densities[,j] <- rep(NA, n)
     } else {
-      cv.bin.probs <- .make.doubly.stochastic(cv.bin.probs, row.sums = rep(1, n), col.sums = bin.sizes * n)
+      #cv.bin.probs <- .make.doubly.stochastic(cv.bin.probs, row.sums = rep(1, n), col.sums = bin.fracs * n)
+      cv.bin.probs <- cv.bin.probs / rowSums(cv.bin.probs)
       cv.library.densities[,j] <- cv.bin.probs[cbind(1:n, disc.U)] / bin.sizes[disc.U]
     }
 
     if(any(is.na(library.bin.probs)) | any(colSums(library.bin.probs) == 0) | any(rowSums(library.bin.probs) == 0)) {
-      library.densities[,j] <- rep(NA, n)
+      library.densities[,j] <- rep(NA, m)
     } else {
-      library.bin.probs <- .make.doubly.stochastic(library.bin.probs, row.sums = rep(1, n), col.sums = bin.sizes * n)
-      library.densities[,j] <- library.bin.probs[cbind(1:n, disc.U)] / bin.sizes[disc.U]
+      #library.bin.probs <- .make.doubly.stochastic(library.bin.probs, row.sums = rep(1, n), col.sums = bin.fracs * n)
+      library.bin.probs <- library.bin.probs / rowSums(library.bin.probs)
+      library.densities[,j] <- library.bin.probs[cbind(1:m, disc.U.new)] / bin.sizes[disc.U.new]
     }
 
   }
 
   alg.names <- paste0(bin.fits[["bin1.SL"]]$libraryNames, "_", b, "bins")
 
-  return(list(bins = bins, bin.fits = bin.fits, a.ecdf = a.ecdf, SL.bin.probs = SL.bin.probs, SL.densities = SL.densities, cv.library.densities = cv.library.densities, library.densities = library.densities, alg.names = alg.names))
+  ret <- list(bins = bins,  a.ecdf = a.ecdf, SL.bin.probs = SL.bin.probs, SL.densities = SL.densities, cv.library.densities = cv.library.densities, library.densities = library.densities, alg.names = alg.names)
+  if(saveFitLibrary) ret$bin.fits <- bin.fits
+  return(ret)
 
 }
 
@@ -391,6 +411,7 @@ predict.cmdSuperLearner <- function(fit, newA, newW, threshold = .001) {
         pred.probs[new.bins == k,] <- predict.SuperLearner(fit$fits[[ind]]$bin.fits[[k]], newdata = newW[new.bins == k,, drop=FALSE], onlySL = TRUE)$library.predict
       }
     }
+    pred.probs <- pred.probs / rowSums(pred.probs)
     pred.densities[,which(lib.name.nbins == bin)] <- pred.probs / bin.sizes[new.bins]
   }
   c(pred.densities[,nonzero,drop=FALSE] %*% trunc.coef[nonzero])
