@@ -213,7 +213,7 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
     if(any(un.U.frac >= 1/b)) {
       mass.pts <- un.U[un.U.frac >= 1/b]
       n.mass.pts <- length(mass.pts)
-      mass.pt.lowers <- sapply(mass.pts, function(x) max(c(U[x - U > 1/(10*n)], 0)))
+      mass.pt.lowers <- round(sapply(mass.pts, function(x) max(c(U[x - U > 1/(10*n)], 0))), 7)
       mass.intervals <- lapply(1:n.mass.pts, function(j) {
         interval(mass.pt.lowers[j], mass.pts[j], bounds="(]")
       })
@@ -237,7 +237,7 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
       for(j in 1:n.cont.bins) {
         if(j == 1) start <- cont.intervals$lower[1]
         else start <- end
-        start.interval <- max(which(cont.intervals$lower <= start & start <= cont.intervals$upper))
+        start.interval <- max(which(cont.intervals$lower <= start + 1e-6 & start <= cont.intervals$upper + 1e-6))
         if(start == cont.intervals$upper[start.interval]) {
           start.interval <- start.interval + 1
           start <- cont.intervals$lower[start.interval]
