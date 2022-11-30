@@ -1,6 +1,6 @@
 #' Nonparametric test of flatness of a causal dose-response curve under exogeneity
 #'
-#' This function performs a hypothesis test that the causal dose-response curve theta(a) is flat on the support of the observed exposure A. The exposure may be discrete, continuous, or an arbitrary mixture of discrete and continuous components.  See the accompanying paper Westling (2020) for details.
+#' This function performs a hypothesis test that the causal dose-response curve theta(a) is flat on the support of the observed exposure A. The exposure may be discrete, continuous, or an arbitrary mixture of discrete and continuous components.  See the accompanying paper for details.
 #'
 #' @param Y \code{n x 1} numeric vector of observed outcome values.
 #' @param A \code{n x 1} numeric vector of exposure values.
@@ -238,7 +238,7 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
 #' @param folds Optional \code{n x 1} numeric vector indicating which fold each observation is in.
 #' @param save.nuis.fits Logical indicating whether to save the fitted nuisance objects.
 #' @param mu.hat Optional pre-fit outcome regression. If \code{cross.fit} is \code{FALSE}, then a function that takes arguments \code{a} (a vector) and \code{w} (a data.frame) and returns predictions of the outcome regression function. If \code{cross.fit} is \code{TRUE}, then a list of functions of length \code{V} with the fitted outcome regression functions on each of the \code{V} training sets. If provided as a list of functions, then \code{folds} must be provided. If \code{mu.SL.library = NULL}, then \code{mu.hats} must be specified.
-#' @param g.hat Optional pre-fit treatment propensities. If \code{cross.fit} is \code{FALSE}, then a function that takes arguments \code{a} (a vector) and \code{w} (a data.frame) and returns predictions of the standardized propensity function. If \code{cross.fit} is \code{TRUE}, then a list of functions of length \code{V} with the fitted standardized propensity functions on each of the \code{V} training sets. If provided as a list of functions, then \code{folds} must be provided. If \code{g.SL.library = NULL}, then \code{g.hats} must be specified.
+#' @param g.hat Optional pre-fit treatment propensities. If \code{cross.fit} is \code{FALSE}, then a function that takes arguments \code{a} (a vector) and \code{w} (a data.frame) and returns predictions of the standardized propensity function OR an \code{n x 1} vector of fitted propensities. If \code{cross.fit} is \code{TRUE}, then a list of functions of length \code{V} with the fitted standardized propensity functions on each of the \code{V} training sets OR a list of length \code{V} of fitted out-of-sample propensities on each of the folds. If provided as a list, then \code{folds} must be provided. If \code{g.SL.library = NULL}, then \code{g.hats} must be specified.
 #' @param g.trunc Value at which to truncate predicted propensities from below. Any propensity values less than \code{g.trunc} will be set to \code{g.trunc}.
 #' @param n.sim Number of simulations to use for the limiting Gaussian process in computing approximate quantiles.
 #' @param return.Omega Logical indicating whether to return the estimated primitive function Omega.

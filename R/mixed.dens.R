@@ -288,7 +288,7 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
   bin.fracs <- sapply(1:b, function(j) mean(disc.U == j))
 
   bin.fits <- NULL
-  bin.probs <- matrix(NA, nrow=n, ncol=b)
+  bin.probs <- matrix(NA, nrow=m, ncol=b)
   for(bin in 1:b) {
     if(verbose) cat("bin", bin, "... ")
     capture.output(bin.fit <- try(SuperLearner(Y=as.numeric(disc.U==bin), X=W, newX=newW, family='binomial', SL.library = SL.library, method='method.NNloglik', control = list(saveFitLibrary=saveFitLibrary), cvControl = list(V=n.folds, validRows=validRows)), silent=TRUE))
@@ -321,7 +321,8 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
   cv.library.densities <-  matrix(NA, nrow=n, ncol=n.alg)
   library.densities <- matrix(NA, nrow=m, ncol=n.alg)
   for (j in 1:n.alg) {
-    cv.bin.probs <- library.bin.probs <- matrix(NA, nrow=n, ncol=b)
+    cv.bin.probs <- matrix(NA, nrow = n, ncol = b)
+    library.bin.probs <- matrix(NA, nrow = m, ncol = b)
     for (bin in 1:b) {
       cv.bin.probs[, bin] <- bin.fits[[paste0("bin", bin, ".SL")]]$Z[,j]
       library.bin.probs[, bin] <- bin.fits[[paste0("bin", bin, ".SL")]]$library.predict[,j]
